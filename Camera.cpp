@@ -48,6 +48,7 @@ void CCamera::init (Size image_size)
 	calculate_extrinsic();
 }
 
+//need to fill
 void CCamera::calculate_intrinsic()
 {
 	_cam_virtual_intrinsic = (Mat1f(3, 4) << 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0);
@@ -272,12 +273,16 @@ void CCamera::calibrate_board(int cam_id)
 	}
 }
 
+
+//need to fill
 void CCamera::transform_to_image(Mat pt3d_mat, Point2f& pt)
 {
+
 }
 
 void CCamera::transform_to_image(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d)
 {
+
 }
 
 void CCamera::update_settings(Mat &im)

@@ -31,7 +31,26 @@ CRobot::~CRobot()
 // Create Homogeneous Transformation Matrix
 Mat CRobot::createHT(Vec3d t, Vec3d r)
 {
-	return (Mat1f(4, 4) << 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+	double r11 = cos(r[0]) * cos(r[1]);
+	double r12 = cos(r[0]) * sin(r[1]) * sin(r[2]) - sin(r[0]) * cos(r[2]);
+	double r13 = cos(r[0]) * sin(r[1]) * cos(r[2]) + sin(r[0]) * cos(r[2]);
+	double r21 = sin(r[0]) * cos(r[1]);
+	double r22 = sin(r[0]) * sin(r[1]) * sin(r[2]) + cos(r[0]) * cos(r[2]);
+	double r23 = sin(r[0]) * sin(r[1]) * cos(r[2]) + cos(r[0]) * sin(r[2]);
+	double r31 = -sin(r[1]);
+	double r32 = cos(r[1]) * sin(r[2]);
+	double r33 = cos(r[1]) * cos(r[2]);
+
+
+	return (Mat1f(4, 4) << 
+		r11, r12, r13, t[0], 
+
+		r21, r22, r23, t[1], 
+
+		r31, r32, r33, t[2], 
+
+		0,   0,   0,   1
+		);
 }
 
 std::vector<Mat> CRobot::createBox(float w, float h, float d)
@@ -65,12 +84,15 @@ std::vector<Mat> CRobot::createCoord()
 	return coord;
 }
 
-
 void CRobot::transformPoints(std::vector<Mat>& points, Mat T)
 {
+	//std::cout << "trandform matrix: " << T << std::endl;
+
 	for (int i = 0; i < points.size(); i++)
 	{
+		std::cout << "before: " << points.at(i) << std::endl;
 		points.at(i) = T * points.at(i);
+		std::cout << "after: " << points.at(i) << std::endl;
 	}
 }
 
@@ -109,16 +131,45 @@ void CRobot::drawCoord(Mat& im, std::vector<Mat> coord3d)
 
 void CRobot::create_simple_robot()
 {
-
+	//CRobot::createBox(float w, float h, float d);
+	//CRobot::drawBox(Mat & im, std::vector<Mat> box3d, Scalar colour);
 }
 
 void CRobot::draw_simple_robot()
 {
+	//clear canvas
 	_canvas = cv::Mat::zeros(_image_size, CV_8UC3) + CV_RGB(60, 60, 60);
 
-	std::vector<Mat> O = createCoord();
+	//draw coordinates
+		std::vector<Mat> Origin = createCoord();
+		//std::cout << "O before: \n" << Origin.at(0) << std::endl;
+		
+		Vec3d t(0, 0, 0);
+		Vec3d r(0, 0, 0);
 
-	_virtualcam.update_settings(_canvas);
+		Mat T = CRobot::createHT(t, r);
+		std::cout << "tranform matrix: \n" << T << std::endl;
+		//std::cout << "t: \n" << t << std::endl;
+		CRobot::transformPoints(Origin, T);
+		std::cout << "O after: \n" << Origin.at(1) << std::endl;
 
+		CRobot::drawCoord(_canvas, Origin);
+
+	//draw box
+		//std::vector<Mat> box0 = CRobot::createBox(30,30,30);
+
+		//Vec3d t(30, 30, 30);
+		//Vec3d r(0, 0, 0);
+
+		//Mat T = CRobot::createHT(t, r);
+		//CRobot::transformPoints(box0, T);
+		////std::cout << "box0 after: \n" << box0.at(0) << std::endl;
+
+		//CRobot::drawBox(_canvas, box0, CV_RGB(0, 0, 255));
+
+	//show sliders
+	//_virtualcam.update_settings(_canvas);
+
+	//show canvas
 	cv::imshow(CANVAS_NAME, _canvas);
 }
