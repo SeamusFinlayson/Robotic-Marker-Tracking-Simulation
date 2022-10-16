@@ -177,7 +177,7 @@ void CRobot::draw_simple_robot()
 	//clear canvas
 	_canvas = cv::Mat::zeros(_image_size, CV_8UC3) + CV_RGB(60, 60, 60);
 
-	//draw coordinates
+	//draw coordinatesasd
 	std::vector<Mat> Origin = createCoord();
 	drawCoord(_canvas, Origin);
 
