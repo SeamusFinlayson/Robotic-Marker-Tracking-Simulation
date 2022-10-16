@@ -26,9 +26,9 @@ void CCamera::init (Size image_size)
 
 	_cam_setting_x = 0; // units in mm
 	_cam_setting_y = 0; // units in mm
-	_cam_setting_z = 0; // units in mm
+	_cam_setting_z = 500; // units in mm
 
-	_cam_setting_roll = 0; // units in degrees
+	_cam_setting_roll = -163; // units in degrees
 	_cam_setting_pitch = 0; // units in degrees
 	_cam_setting_yaw = 0; // units in degrees
 
@@ -51,12 +51,51 @@ void CCamera::init (Size image_size)
 //need to fill
 void CCamera::calculate_intrinsic()
 {
-	_cam_virtual_intrinsic = (Mat1f(3, 4) << 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0);
+	Mat pixel_principal_mat = (Mat1f(3, 3) << 
+		1/_pixel_size, 0, (float)_principal_point.x,
+		0, 1/_pixel_size, (float)_principal_point.y,
+		0, 0, 1
+		);
+
+	Mat focal_mat = (Mat1f(3, 4) << 
+		(float)_cam_setting_f / 1000, 0, 0, 0,
+		0, (float)_cam_setting_f / 1000, 0, 0,
+		0, 0, 1, 0
+		);
+
+	_cam_virtual_intrinsic = pixel_principal_mat * focal_mat;
+	
 }
 
 void CCamera::calculate_extrinsic()
 {
-	_cam_virtual_extrinsic = (Mat1f(4, 4) << 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+	float roll = (float)_cam_setting_roll / 57.2957795131; //convert from degrees to radians
+	float pitch = (float)_cam_setting_pitch / 57.2957795131; //convert from degrees to radians
+	float yaw = (float)_cam_setting_yaw / 57.2957795131; //convert from degrees to radians
+
+	double r11 = cos(yaw) * cos(pitch);
+	double r12 = (cos(yaw) * sin(pitch) * sin(roll)) - (sin(yaw) * cos(roll));
+	double r13 = (cos(yaw) * sin(pitch) * cos(roll)) + (sin(yaw) * sin(roll));
+
+	double r21 = sin(yaw) * cos(pitch);
+	double r22 = (sin(yaw) * sin(pitch) * sin(roll)) + (cos(yaw) * cos(roll));
+	double r23 = (sin(yaw) * sin(pitch) * cos(roll)) - (cos(yaw) * sin(roll));
+
+	double r31 = -sin(pitch);
+	double r32 = cos(pitch) * sin(roll);
+	double r33 = cos(pitch) * cos(roll);
+	
+	_cam_virtual_extrinsic = (Mat1f(4, 4) << 
+		r11, r12, r13, (float)_cam_setting_x / 1000,
+
+		r21, r22, r23, (float)_cam_setting_y / 1000,
+
+		r31, r32, r33, (float)_cam_setting_z / 1000,
+
+		0, 0, 0, 1
+	);
+
+	//
 }
 
 bool CCamera::save_camparam(string filename, Mat& cam, Mat& dist)
@@ -277,12 +316,28 @@ void CCamera::calibrate_board(int cam_id)
 //need to fill
 void CCamera::transform_to_image(Mat pt3d_mat, Point2f& pt)
 {
+	//std::cout << "extrinsic: " << _cam_virtual_extrinsic << std::endl;
+	//std::cout << "intrinsic: " << _cam_virtual_intrinsic << std::endl;
 
+	Mat pers_3d = _cam_virtual_intrinsic * _cam_virtual_extrinsic * pt3d_mat;
+	//std::cout << pers_3d <<std::endl;
+
+	pt.x = pers_3d.at<float>(0, 0) / pers_3d.at<float>(2, 0);
+	pt.y = pers_3d.at<float>(1, 0) / pers_3d.at<float>(2, 0);
+	//std::cout << pt << std::endl;
 }
 
 void CCamera::transform_to_image(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d)
 {
+	Point2f pt;
 
+	for (int i = 0; i < pts3d_mat.size(); i++) {
+
+		Mat pers_3d = _cam_virtual_intrinsic * _cam_virtual_extrinsic * pts3d_mat.at(i);
+		pt.x = pers_3d.at<float>(0, 0) / pers_3d.at<float>(2, 0);
+		pt.y = pers_3d.at<float>(1, 0) / pers_3d.at<float>(2, 0);
+		pts2d.push_back(pt);
+	}
 }
 
 void CCamera::update_settings(Mat &im)

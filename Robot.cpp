@@ -31,16 +31,23 @@ CRobot::~CRobot()
 // Create Homogeneous Transformation Matrix
 Mat CRobot::createHT(Vec3d t, Vec3d r)
 {
-	double r11 = cos(r[0]) * cos(r[1]);
-	double r12 = cos(r[0]) * sin(r[1]) * sin(r[2]) - sin(r[0]) * cos(r[2]);
-	double r13 = cos(r[0]) * sin(r[1]) * cos(r[2]) + sin(r[0]) * cos(r[2]);
-	double r21 = sin(r[0]) * cos(r[1]);
-	double r22 = sin(r[0]) * sin(r[1]) * sin(r[2]) + cos(r[0]) * cos(r[2]);
-	double r23 = sin(r[0]) * sin(r[1]) * cos(r[2]) + cos(r[0]) * sin(r[2]);
-	double r31 = -sin(r[1]);
-	double r32 = cos(r[1]) * sin(r[2]);
-	double r33 = cos(r[1]) * cos(r[2]);
 
+	r[0] = r[0] / 57.2957795131; //convert from degrees to radians
+	r[1] = r[1] / 57.2957795131; //convert from degrees to radians
+	r[2] = r[2] / 57.2957795131; //convert from degrees to radians
+
+	//need to fix
+	double r11 = cos(r[2]) * cos(r[1]);
+	double r12 = cos(r[2]) * sin(r[1]) * sin(r[0]) - sin(r[2]) * cos(r[0]);
+	double r13 = cos(r[2]) * sin(r[1]) * cos(r[0]) + sin(r[2]) * sin(r[0]);
+
+	double r21 = sin(r[2]) * cos(r[1]);
+	double r22 = sin(r[2]) * sin(r[1]) * sin(r[0]) + cos(r[2]) * cos(r[0]);
+	double r23 = sin(r[2]) * sin(r[1]) * cos(r[0]) - cos(r[2]) * sin(r[0]);
+
+	double r31 = -sin(r[1]);
+	double r32 = cos(r[1]) * sin(r[0]);
+	double r33 = cos(r[1]) * cos(r[0]);
 
 	return (Mat1f(4, 4) << 
 		r11, r12, r13, t[0], 
@@ -90,9 +97,9 @@ void CRobot::transformPoints(std::vector<Mat>& points, Mat T)
 
 	for (int i = 0; i < points.size(); i++)
 	{
-		std::cout << "before: " << points.at(i) << std::endl;
+		//std::cout << "before: " << points.at(i) << std::endl;
 		points.at(i) = T * points.at(i);
-		std::cout << "after: " << points.at(i) << std::endl;
+		//std::cout << "after: " << points.at(i) << std::endl;
 	}
 }
 
@@ -131,8 +138,38 @@ void CRobot::drawCoord(Mat& im, std::vector<Mat> coord3d)
 
 void CRobot::create_simple_robot()
 {
-	//CRobot::createBox(float w, float h, float d);
-	//CRobot::drawBox(Mat & im, std::vector<Mat> box3d, Scalar colour);
+	//draw box for feet
+	std::vector<Mat> feet = createBox(0.05, 0.05, 0.05);
+	drawBox(_canvas, feet, CV_RGB(255, 0, 0));
+
+	//draw box for legs
+	std::vector<Mat> legs = createBox(0.05, 0.05, 0.05);
+	Vec3d t(0, 0.05, 0);
+	Vec3d r(0, 0, 0);
+	Mat legs_trans = createHT(t, r);
+	transformPoints(legs, legs_trans);
+	drawBox(_canvas, legs, CV_RGB(255, 0, 0));
+
+	//draw box for head
+	std::vector<Mat> head = createBox(0.05, 0.05, 0.05);
+	t = { 0, 0.15, 0 };
+	Mat head_trans = createHT(t, r);
+	transformPoints(head, head_trans);
+	drawBox(_canvas, head, CV_RGB(255, 0, 0));
+
+	//draw box for arm in positive x direction
+	std::vector<Mat> arm_px = createBox(0.05, 0.05, 0.05);
+	t = { 0.05, 0.10, 0 };
+	Mat arm_px_trans = createHT(t, r);
+	transformPoints(arm_px, arm_px_trans);
+	drawBox(_canvas, arm_px, CV_RGB(0, 255, 0));
+
+	//draw box for arm in negative x direction
+	std::vector<Mat> arm_nx = createBox(0.05, 0.05, 0.05);
+	t = { -0.05, 0.10, 0 };
+	Mat arm_nx_trans = createHT(t, r);
+	transformPoints(arm_nx, arm_nx_trans);
+	drawBox(_canvas, arm_nx, CV_RGB(0, 0, 255));
 }
 
 void CRobot::draw_simple_robot()
@@ -141,34 +178,14 @@ void CRobot::draw_simple_robot()
 	_canvas = cv::Mat::zeros(_image_size, CV_8UC3) + CV_RGB(60, 60, 60);
 
 	//draw coordinates
-		std::vector<Mat> Origin = createCoord();
-		//std::cout << "O before: \n" << Origin.at(0) << std::endl;
-		
-		Vec3d t(0, 0, 0);
-		Vec3d r(0, 0, 0);
+	std::vector<Mat> Origin = createCoord();
+	drawCoord(_canvas, Origin);
 
-		Mat T = CRobot::createHT(t, r);
-		std::cout << "tranform matrix: \n" << T << std::endl;
-		//std::cout << "t: \n" << t << std::endl;
-		CRobot::transformPoints(Origin, T);
-		std::cout << "O after: \n" << Origin.at(1) << std::endl;
-
-		CRobot::drawCoord(_canvas, Origin);
-
-	//draw box
-		//std::vector<Mat> box0 = CRobot::createBox(30,30,30);
-
-		//Vec3d t(30, 30, 30);
-		//Vec3d r(0, 0, 0);
-
-		//Mat T = CRobot::createHT(t, r);
-		//CRobot::transformPoints(box0, T);
-		////std::cout << "box0 after: \n" << box0.at(0) << std::endl;
-
-		//CRobot::drawBox(_canvas, box0, CV_RGB(0, 0, 255));
+	//draw robot
+	create_simple_robot();
 
 	//show sliders
-	//_virtualcam.update_settings(_canvas);
+	_virtualcam.update_settings(_canvas);
 
 	//show canvas
 	cv::imshow(CANVAS_NAME, _canvas);
