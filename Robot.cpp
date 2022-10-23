@@ -7,7 +7,7 @@
 
 #include "cvui.h"
 
-CRobot::CRobot()
+CRobot::CRobot(int real_cam)
 {
 	//////////////////////////////////////
 	// Create image and window for drawing
@@ -17,18 +17,29 @@ CRobot::CRobot()
 	cv::namedWindow(CANVAS_NAME);
 	cvui::init(CANVAS_NAME);
 
-  ///////////////////////////////////////////////
+	///////////////////////////////////////////////
 	// uArm setup
 
 	//uarm.init_com("COM4");
 	//uarm.init_robot();
+
+	//start real camera - comment out to remove startup delay for lab 3
+	_virtualcam.init_real_cam(real_cam);
+
+	//initialize time tracking
+	_time_old = getTickCount() / getTickFrequency();
+	_angle_z = 0;
 }
 
 CRobot::~CRobot()
 {
 }
 
-// Create Homogeneous Transformation Matrix
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// LAB3
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Create Homogeneous Transformation Matrix  - added by Seamus Finlayson
 Mat CRobot::createHT(Vec3d t, Vec3d r)
 {
 
@@ -136,6 +147,7 @@ void CRobot::drawCoord(Mat& im, std::vector<Mat> coord3d)
 	line(im, O, Z, CV_RGB(0, 0, 255), 1); // Z=BLUE
 }
 
+//creates a "robot" in 3d space then converts it to a 2d image - added by Seamus Finlayson
 void CRobot::create_simple_robot()
 {
 	//draw box for feet
@@ -172,6 +184,7 @@ void CRobot::create_simple_robot()
 	drawBox(_canvas, arm_nx, CV_RGB(0, 0, 255));
 }
 
+//draws the "robot" created in create_simple_robot - added by Seamus Finlayson
 void CRobot::draw_simple_robot()
 {
 	//clear canvas
@@ -189,4 +202,130 @@ void CRobot::draw_simple_robot()
 
 	//show canvas
 	cv::imshow(CANVAS_NAME, _canvas);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// LAB4
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//similar to drawCoord but uses rotation and translation determined from a real image - added by Seamus Finlayson
+//use for lab 4 and beyond
+void CRobot::drawCoord_realcam(Mat& im, std::vector<Mat> coord3d) {
+	//Point2f O, X, Y, Z;
+	std::vector<Point2f> pts;
+
+	_virtualcam.transform_to_image_realcam(coord3d, pts);
+
+	line(im, pts.at(0), pts.at(1), CV_RGB(255, 0, 0), 1); // X=RED
+	line(im, pts.at(0), pts.at(2), CV_RGB(0, 255, 0), 1); // Y=GREEN
+	line(im, pts.at(0), pts.at(3), CV_RGB(0, 0, 255), 1); // Z=BLUE
+}
+
+//similar to drawBox but uses rotation and translation determined from a real image - added by Seamus Finlayson
+//use for lab 4 and beyond
+void CRobot::drawBox_realcam(Mat& im, std::vector<Mat> box3d, Scalar colour) {
+	std::vector<Point2f> box2d;
+
+	// The 12 lines connecting all vertexes 
+	float draw_box1[] = { 0,1,2,3,4,5,6,7,0,1,2,3 };
+	float draw_box2[] = { 1,2,3,0,5,6,7,4,4,5,6,7 };
+
+	_virtualcam.transform_to_image_realcam(box3d, box2d);
+
+	for (int i = 0; i < 12; i++)
+	{
+		Point pt1 = box2d.at(draw_box1[i]);
+		Point pt2 = box2d.at(draw_box2[i]);
+
+		line(im, pt1, pt2, colour, 1);
+	}
+}
+
+//creates a "robot" in 3d space then converts it to a 2d image for a camera image - added by Seamus Finlayson
+void CRobot::create_simple_robot_realcam() {
+
+	//set rotation for entire robot
+	Vec3d r_all(0, 0, _angle_z);
+	Vec3d t_all(0, 0, 0);
+	Mat trans_all = createHT(t_all, r_all); //perform after others
+
+	//draw box for feet
+	std::vector<Mat> feet = createBox(0.05, 0.05, 0.05);
+	Vec3d t(0, 0, 0.025);
+	Vec3d r(0, 0, 0);
+	Mat feet_trans = createHT(t, r);
+	transformPoints(feet, feet_trans);
+	transformPoints(feet, trans_all);
+	drawBox_realcam(_canvas, feet, CV_RGB(255, 0, 0));
+
+	//draw box for legs
+	std::vector<Mat> legs = createBox(0.05, 0.05, 0.05);
+	t = { 0, 0, 0.1-0.025};
+	Mat legs_trans = createHT(t, r);
+	transformPoints(legs, legs_trans);
+	transformPoints(legs, trans_all);
+	drawBox_realcam(_canvas, legs, CV_RGB(255, 0, 0));
+
+	//draw box for head
+	std::vector<Mat> head = createBox(0.05, 0.05, 0.05);
+	t = {0, 0, 0.2-0.025};
+	Mat head_trans = createHT(t, r);
+	transformPoints(head, head_trans);
+	transformPoints(head, trans_all);
+	drawBox_realcam(_canvas, head, CV_RGB(255, 0, 0));
+
+	//draw box for arm in positive x direction
+	std::vector<Mat> arm_py = createBox(0.05, 0.05, 0.05);
+	t = {0, 0.05, 0.15-0.025};
+	Mat arm_px_trans = createHT(t, r);
+	transformPoints(arm_py, arm_px_trans);
+	transformPoints(arm_py, trans_all);
+	drawBox_realcam(_canvas, arm_py, CV_RGB(0, 255, 0));
+
+	//draw box for arm in negative x direction
+	std::vector<Mat> arm_ny = createBox(0.05, 0.05, 0.05);
+	t = {0, -0.05, 0.15-0.025};
+	Mat arm_nx_trans = createHT(t, r);
+	transformPoints(arm_ny, arm_nx_trans);
+	transformPoints(arm_ny, trans_all);
+	drawBox_realcam(_canvas, arm_ny, CV_RGB(0, 0, 255));
+}
+
+//draws a robot on a camera image based on coordintes extrapolated from the image - added by Seamus Finlayson
+void CRobot::draw_robot_on_image() {
+
+	//update robot parameters
+	update();
+
+	//get new image
+	_virtualcam.get_camera_image(_canvas);
+
+	//get pose of charuco board
+	_virtualcam.find_charuco_pose(_canvas);
+
+	//draw coordinatesasd
+	std::vector<Mat> Origin = createCoord();
+	drawCoord_realcam(_canvas, Origin);
+
+	//draw robot
+	create_simple_robot_realcam();
+
+	//show sliders
+	_virtualcam.update_settings(_canvas);
+
+	//show canvas
+	cv::imshow(CANVAS_NAME, _canvas);
+}
+
+//updates robot variables and time - added by Seamus Finlayson
+void CRobot::update() {
+
+	//update time
+	_time = getTickCount() / getTickFrequency();
+	_time_change = _time - _time_old;
+	_time_old = _time;
+
+	//update robot parameters
+	float angular_velocity_z = 20; //degrees/s
+	_angle_z += angular_velocity_z * _time_change; //degrees/s * time in s
 }

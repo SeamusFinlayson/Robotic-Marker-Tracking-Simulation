@@ -2,6 +2,9 @@
 // ELEX 7825 Template project for BCIT
 // Created Sept 9, 2020 by Craig Hennessey
 // Last updated September 26, 2022
+// 
+// This is the main for robotic system design course labs
+// Edited Fall 2022 by Seamus Finlayson
 ////////////////////////////////////////////////////////////////
 #include "stdafx.h"
 
@@ -33,9 +36,9 @@ void lab2()
 void lab3(int cam_id)
 {
   char exit_key = -1;
-  CRobot robot;
+  CRobot robot(cam_id);
 
-  robot.create_simple_robot();
+  //robot.create_simple_robot();
 
   while (exit_key != 'q')
   {
@@ -46,7 +49,16 @@ void lab3(int cam_id)
 
 void lab4(int cam_id)
 {
+    char exit_key = -1;
+    CRobot robot(cam_id);
 
+    //robot.create_simple_robot();
+
+    while (exit_key != 'q')
+    {
+        robot.draw_robot_on_image();
+        exit_key = waitKey(10);
+    }
 }
 
 void lab5(int cam_id)

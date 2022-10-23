@@ -13,6 +13,10 @@ public:
 	~CCamera();
 
 private:
+
+	////////////////////////////////////
+	// LAB 3
+	
 	// Virtual Camera
 	float _pixel_size;
 	Point2f _principal_point;
@@ -31,13 +35,33 @@ private:
 	int _cam_setting_pitch;
 	int _cam_setting_yaw;
 
+	////////////////////////////////////
+	// LAB 4
+
 	// Real webcam
 	Mat _cam_real_intrinsic;
 	Mat _cam_real_extrinsic;
 	Mat _cam_real_dist_coeff;
+	VideoCapture _inputVideo;
+
+	//pose determined by open cv
+	Vec3d _rvec;
+	Vec3d _tvec;
 
 public:
+
+	////////////////////////////////////
+	// LAB 3
+
 	void init(Size image_size);
+
+	void transform_to_image(Mat pt3d_mat, Point2f& pt);
+	void transform_to_image(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d);
+
+	void update_settings(Mat& im);
+
+	////////////////////////////////////
+	// LAB 4
 
 	bool save_camparam(string filename, Mat& cam, Mat& dist);
 	bool load_camparam(string filename, Mat& cam, Mat& dist);
@@ -45,9 +69,12 @@ public:
 	void createChArUcoBoard();
 	void calibrate_board(int cam_id);
 
-	void transform_to_image(Mat pt3d_mat, Point2f& pt);
-	void transform_to_image(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d);
+	void init_real_cam(int cam_id);
+	void get_camera_image(Mat& frame);
+	void find_charuco_pose(Mat& image);
+	void transform_to_image_realcam(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d);
 
-	void update_settings(Mat &im);
+	//bool detect_board_pose();
+	//bool detect_marker_pose();
 };
 

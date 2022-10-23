@@ -7,10 +7,15 @@
 
 #include "cvui.h"
 
+#define ESC 27
+
 CCamera::CCamera()
 {
 	// Initialize with a default camera image size 
 	init(Size(1000, 600));
+
+	_rvec = {0,0,0};
+	_tvec = {0,0,0};
 }
 
 CCamera::~CCamera()
@@ -46,9 +51,18 @@ void CCamera::init (Size image_size)
 	// Virtual Camera Extrinsic
 
 	calculate_extrinsic();
+
+	//////////////////////////////////////
+	// Real Camera Extrinsic
+
+	load_camparam("cam_param.xml", _cam_real_intrinsic, _cam_real_dist_coeff);
 }
 
-//need to fill
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Lab 3
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//calculate intrinsic image transform matrix - added by Seamus Finlayson
 void CCamera::calculate_intrinsic()
 {
 	Mat pixel_principal_mat = (Mat1f(3, 3) << 
@@ -67,6 +81,7 @@ void CCamera::calculate_intrinsic()
 	
 }
 
+//calculate intrinsic image transform matrix - added by Seamus Finlayson
 void CCamera::calculate_extrinsic()
 {
 	float roll = (float)_cam_setting_roll / 57.2957795131; //convert from degrees to radians
@@ -97,6 +112,92 @@ void CCamera::calculate_extrinsic()
 
 	//
 }
+
+//transform an individual Mat point in 3d space to point on a 2d image  - added by Seamus Finlayson
+void CCamera::transform_to_image(Mat pt3d_mat, Point2f& pt)
+{
+	//std::cout << "extrinsic: " << _cam_virtual_extrinsic << std::endl;
+	//std::cout << "intrinsic: " << _cam_virtual_intrinsic << std::endl;
+
+	Mat pers_3d = _cam_virtual_intrinsic * _cam_virtual_extrinsic * pt3d_mat;
+	//std::cout << pers_3d <<std::endl;
+
+	pt.x = pers_3d.at<float>(0, 0) / pers_3d.at<float>(2, 0);
+	pt.y = pers_3d.at<float>(1, 0) / pers_3d.at<float>(2, 0);
+	//std::cout << pt << std::endl;
+}
+
+//transform a vector of Mat points in 3d space to a vector of points on a 2d image  - added by Seamus Finlayson
+void CCamera::transform_to_image(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d)
+{
+	Point2f pt;
+
+	for (int i = 0; i < pts3d_mat.size(); i++) {
+
+		Mat pers_3d = _cam_virtual_intrinsic * _cam_virtual_extrinsic * pts3d_mat.at(i);
+		pt.x = pers_3d.at<float>(0, 0) / pers_3d.at<float>(2, 0);
+		pt.y = pers_3d.at<float>(1, 0) / pers_3d.at<float>(2, 0);
+		pts2d.push_back(pt);
+	}
+}
+
+void CCamera::update_settings(Mat& im)
+{
+	bool track_board = false;
+	Point _camera_setting_window;
+
+	cvui::window(im, _camera_setting_window.x, _camera_setting_window.y, 200, 350, "Camera Settings");
+
+	_camera_setting_window.x = 5;
+	_camera_setting_window.y = 20;
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_f, 1, 20);
+	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "F");
+
+	_camera_setting_window.y += 45;
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_x, -500, 500);
+	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "X");
+
+	_camera_setting_window.y += 45;
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_y, -500, 500);
+	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Y");
+
+	_camera_setting_window.y += 45;
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_z, -500, 500);
+	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Z");
+
+	_camera_setting_window.y += 45;
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_roll, -180, 180);
+	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "R");
+
+	_camera_setting_window.y += 45;
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_pitch, -180, 180);
+	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "P");
+
+	_camera_setting_window.y += 45;
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_yaw, -180, 180);
+	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Y");
+
+	_camera_setting_window.y += 45;
+	cvui::checkbox(im, _camera_setting_window.x, _camera_setting_window.y, "Track Board", &track_board);
+
+	_camera_setting_window.y += 45;
+	if (cvui::button(im, _camera_setting_window.x, _camera_setting_window.y, 100, 30, "Reset"))
+	{
+		init(im.size());
+	}
+
+	cvui::update();
+
+	//////////////////////////////
+	// Update camera model
+
+	calculate_intrinsic();
+	calculate_extrinsic();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Lab 4
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool CCamera::save_camparam(string filename, Mat& cam, Mat& dist)
 {
@@ -154,9 +255,10 @@ void CCamera::calibrate_board(int cam_id)
 	// Board settings
 	Size board_size = Size(5, 7);
 	int dictionary_id = aruco::DICT_6X6_250;
-  
-	float size_aruco_square = 0; // MEASURE THESE
-	float size_aruco_mark = 0; // MEASURE THESE
+
+	//in metres
+	float size_aruco_square = 3.08/1000; // MEASURE THESE
+	float size_aruco_mark = 1.86/1000; // MEASURE THESE
 
 	Ptr<aruco::DetectorParameters> detectorParams = aruco::DetectorParameters::create();
 	Ptr<aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(aruco::PREDEFINED_DICTIONARY_NAME(dictionary_id));
@@ -209,7 +311,7 @@ void CCamera::calibrate_board(int cam_id)
 		imshow("out", draw_im);
 
 		char key = (char)waitKey(10);
-		if (key == 27) break;
+		if (key == ESC) break;
 		if (key == 'c' && corner_ids.size() > 0) 
 		{
 			cout << "Frame captured" << endl;
@@ -294,102 +396,131 @@ void CCamera::calibrate_board(int cam_id)
 	cout << "Calibration saved to " << "cam_param.xml" << endl;
 
 	// show interpolated charuco corners for debugging
-		for (unsigned int frame = 0; frame < filteredImages.size(); frame++) 
-		{
-			Mat imageCopy = filteredImages[frame].clone();
+	for (unsigned int frame = 0; frame < filteredImages.size(); frame++) 
+	{
+		Mat imageCopy = filteredImages[frame].clone();
 			
-			if (calib_id[frame].size() > 0) {
+		if (calib_id[frame].size() > 0) {
 
-				if (allCharucoCorners[frame].total() > 0) 
-				{
-					aruco::drawDetectedCornersCharuco(imageCopy, allCharucoCorners[frame],allCharucoIds[frame]);
-				}
+			if (allCharucoCorners[frame].total() > 0) 
+			{
+				aruco::drawDetectedCornersCharuco(imageCopy, allCharucoCorners[frame],allCharucoIds[frame]);
 			}
+		}
 
-			imshow("out", imageCopy);
-			char key = (char)waitKey(0);
-			if (key == 27) break;
+		imshow("out", imageCopy);
+		char key = (char)waitKey(0);
+		if (key == ESC) break;
 	}
 }
 
+//starts real cam and sets size  - added by Seamus Finlayson
+void CCamera::init_real_cam(int cam_id) {
 
-//need to fill
-void CCamera::transform_to_image(Mat pt3d_mat, Point2f& pt)
-{
-	//std::cout << "extrinsic: " << _cam_virtual_extrinsic << std::endl;
-	//std::cout << "intrinsic: " << _cam_virtual_intrinsic << std::endl;
+	//setup video input
+	_inputVideo.open(cam_id);
 
-	Mat pers_3d = _cam_virtual_intrinsic * _cam_virtual_extrinsic * pt3d_mat;
-	//std::cout << pers_3d <<std::endl;
-
-	pt.x = pers_3d.at<float>(0, 0) / pers_3d.at<float>(2, 0);
-	pt.y = pers_3d.at<float>(1, 0) / pers_3d.at<float>(2, 0);
-	//std::cout << pt << std::endl;
+	//set video dimensions
+	_inputVideo.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
+	_inputVideo.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
 }
 
-void CCamera::transform_to_image(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d)
-{
-	Point2f pt;
+//gets an image from the video stream - added by Seamus Finlayson
+void CCamera::get_camera_image(Mat& frame) {
+
+	//_inputVideo.grab();
+	//Mat im;
+
+	//// Get image
+	//_inputVideo.retrieve(im);
+	//im.copyTo(frame);
+
+
+
+	//check if video is open
+	if (_inputVideo.isOpened() == true) {
+
+		//get frame from video
+		_inputVideo >> frame;
+	}
+
+	//imshow("direct camera stream", frame); //works
+}
+
+//finds the pose of the charuco board if it is in the image passed to it - added by Seamus Finlayson
+//based on code from https://docs.opencv.org/4.5.0/df/d4a/tutorial_charuco_detection.html
+void CCamera::find_charuco_pose(Mat& image) {
+
+	Mat draw_image;
+
+	//make a copy in the image to draw on so markups dont interfere with image processing
+	image.copyTo(draw_image);
+
+	//set up board, dictionary, and params
+	cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+	cv::Ptr<cv::aruco::CharucoBoard> board = cv::aruco::CharucoBoard::create(5, 7, 0.04f, 0.02f, dictionary);
+	cv::Ptr<cv::aruco::DetectorParameters> params = cv::aruco::DetectorParameters::create();
+
+	//get marker ids
+	std::vector<int> markerIds;
+	std::vector<std::vector<cv::Point2f> > markerCorners;
+	cv::aruco::detectMarkers(image, board->dictionary, markerCorners, markerIds, params);
+
+	// if at least one marker detected
+	if (markerIds.size() > 0) {
+
+		//draw markers on image
+		cv::aruco::drawDetectedMarkers(draw_image, markerCorners, markerIds);
+		std::vector<cv::Point2f> charucoCorners;
+		std::vector<int> charucoIds;
+
+		//find corners
+		cv::aruco::interpolateCornersCharuco(markerCorners, markerIds, image, board, charucoCorners, charucoIds, _cam_real_intrinsic, _cam_real_dist_coeff);
+
+		// if at least one charuco corner detected
+		if (charucoIds.size() > 0) {
+			cv::Scalar color = cv::Scalar(255, 0, 0);
+			//cv::aruco::drawDetectedCornersCharuco(draw_image, charucoCorners, charucoIds, color);
+
+			// cv::aruco::estimatePoseCharucoBoard(charucoCorners, charucoIds, board, _cam_real_intrinsic, _cam_real_dist_coeff, rvec, tvec);
+			bool valid = cv::aruco::estimatePoseCharucoBoard(charucoCorners, charucoIds, board, _cam_real_intrinsic, _cam_real_dist_coeff, _rvec, _tvec);
+
+			// if charuco pose is valid draw origin
+			if (valid) {
+				//cv::aruco::drawAxis(image, _cam_real_intrinsic, _cam_real_dist_coeff, rvec, tvec, 0.1f);
+
+				//update camera variables
+				//m to mm
+				_cam_setting_x = _tvec[0] * 1000;
+				_cam_setting_y = _tvec[1] * 1000;
+				_cam_setting_z = _tvec[2] * 1000;
+
+				//delete this
+				//rad to degrees
+				//_cam_setting_roll = rvec[2] * 180;
+				//_cam_setting_pitch = rvec[1] * 180;
+				//_cam_setting_yaw = rvec[0] * 180;
+
+				//copies aruco codes to display image
+				draw_image.copyTo(image);
+			}
+		}
+	}
+}
+
+//like transform_to_image but uses vectors created by open cv's estimatePoseCharucoBoard() function  - added by Seamus Finlayson
+//must be used with real camera for lab 4 and beyond
+void CCamera::transform_to_image_realcam(std::vector<Mat> pts3d_mat, std::vector<Point2f>& pts2d) {
+
+	std::vector<Point3f> point_pts;
+	Point3f point;
 
 	for (int i = 0; i < pts3d_mat.size(); i++) {
-
-		Mat pers_3d = _cam_virtual_intrinsic * _cam_virtual_extrinsic * pts3d_mat.at(i);
-		pt.x = pers_3d.at<float>(0, 0) / pers_3d.at<float>(2, 0);
-		pt.y = pers_3d.at<float>(1, 0) / pers_3d.at<float>(2, 0);
-		pts2d.push_back(pt);
-	}
-}
-
-void CCamera::update_settings(Mat &im)
-{
-	bool track_board = false;
-	Point _camera_setting_window;
-
-	cvui::window(im, _camera_setting_window.x, _camera_setting_window.y, 200, 350, "Camera Settings");
-
-	_camera_setting_window.x = 5;
-	_camera_setting_window.y = 20;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_f, 1, 20);
-	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "F");
-
-	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_x, -500, 500);
-	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "X");
-
-	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_y, -500, 500);
-	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Y");
-	
-	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_z, -500, 500);
-	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Z");
-
-	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_roll, -180, 180);
-	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "R");
-
-	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_pitch, -180, 180);
-	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "P");
-
-	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_yaw, -180, 180);
-	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Y");
-
-	_camera_setting_window.y += 45;
-	cvui::checkbox(im, _camera_setting_window.x, _camera_setting_window.y, "Track Board", &track_board);
-
-	_camera_setting_window.y += 45;
-	if (cvui::button(im, _camera_setting_window.x, _camera_setting_window.y, 100, 30, "Reset"))
-	{
-		init(im.size());
+		point.x = pts3d_mat.at(i).at<float>(0, 0);
+		point.y = pts3d_mat.at(i).at<float>(1, 0);
+		point.z = pts3d_mat.at(i).at<float>(2, 0);
+		point_pts.push_back(point);
 	}
 
-	cvui::update();
-
-	//////////////////////////////
-	// Update camera model
-
-	calculate_intrinsic();
-	calculate_extrinsic();
+	projectPoints(point_pts, _rvec, _tvec, _cam_real_intrinsic, _cam_real_dist_coeff, pts2d);
 }
