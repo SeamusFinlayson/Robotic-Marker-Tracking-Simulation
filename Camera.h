@@ -76,5 +76,9 @@ public:
 
 	//bool detect_board_pose();
 	//bool detect_marker_pose();
-};
 
+	////////////////////////////////////
+	// LAB 6
+
+	void warp_to_rectangle(Mat inputImage, Mat& warped_board);
+};

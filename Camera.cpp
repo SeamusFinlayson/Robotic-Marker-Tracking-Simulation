@@ -31,9 +31,9 @@ void CCamera::init (Size image_size)
 
 	_cam_setting_x = 0; // units in mm
 	_cam_setting_y = 0; // units in mm
-	_cam_setting_z = 500; // units in mm
+	_cam_setting_z = 1000; // units in mm
 
-	_cam_setting_roll = -163; // units in degrees
+	_cam_setting_roll = 180; // units in degrees
 	_cam_setting_pitch = 0; // units in degrees
 	_cam_setting_yaw = 0; // units in degrees
 
@@ -162,11 +162,11 @@ void CCamera::update_settings(Mat& im)
 	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Y");
 
 	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_z, -500, 500);
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_z, -500, 1000);
 	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "Z");
 
 	_camera_setting_window.y += 45;
-	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_roll, -180, 180);
+	cvui::trackbar(im, _camera_setting_window.x, _camera_setting_window.y, 180, &_cam_setting_roll, 0, 360);
 	cvui::text(im, _camera_setting_window.x + 180, _camera_setting_window.y + 20, "R");
 
 	_camera_setting_window.y += 45;
@@ -458,7 +458,7 @@ void CCamera::find_charuco_pose(Mat& image) {
 
 	//set up board, dictionary, and params
 	cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-	cv::Ptr<cv::aruco::CharucoBoard> board = cv::aruco::CharucoBoard::create(5, 7, 0.04f, 0.02f, dictionary);
+	cv::Ptr<cv::aruco::CharucoBoard> board = cv::aruco::CharucoBoard::create(5, 7, 3.08f/100, 1.86f/100, dictionary);
 	cv::Ptr<cv::aruco::DetectorParameters> params = cv::aruco::DetectorParameters::create();
 
 	//get marker ids
@@ -490,9 +490,9 @@ void CCamera::find_charuco_pose(Mat& image) {
 				//cv::aruco::drawAxis(image, _cam_real_intrinsic, _cam_real_dist_coeff, rvec, tvec, 0.1f);
 
 				//update camera variables
-				//m to mm
-				_cam_setting_x = _tvec[0] * 1000;
-				_cam_setting_y = _tvec[1] * 1000;
+				//m to mm - note x and y needed to be swapped
+				_cam_setting_x = _tvec[1] * 1000;
+				_cam_setting_y = _tvec[0] * 1000;
 				_cam_setting_z = _tvec[2] * 1000;
 
 				//delete this
@@ -523,4 +523,70 @@ void CCamera::transform_to_image_realcam(std::vector<Mat> pts3d_mat, std::vector
 	}
 
 	projectPoints(point_pts, _rvec, _tvec, _cam_real_intrinsic, _cam_real_dist_coeff, pts2d);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Lab 6
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//detects charuco markers and streteches image of charuco board into a rectangle - added by Seamus Finlayson
+void CCamera::warp_to_rectangle(Mat inputImage, Mat& warped_board) {
+
+	if (inputImage.empty() == false) {
+		//find markers in input image
+		std::vector<int> markerIds;
+		std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
+		cv::Ptr<cv::aruco::DetectorParameters> parameters = cv::aruco::DetectorParameters::create();
+		cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+		cv::aruco::detectMarkers(inputImage, dictionary, markerCorners, markerIds, parameters, rejectedCandidates);
+
+		//capture corner markers
+		vector<Point2f> board_corners;
+		for (int i = 0; (i < markerIds.size()) && (board_corners.size() == 0); i++) {
+			if (markerIds.at(i) == 75) {
+				board_corners.push_back(markerCorners.at(i).at(0));
+			}
+		}
+		for (int i = 0; (i < markerIds.size()) && (board_corners.size() == 1); i++) {
+			if (markerIds.at(i) == 80) {
+				board_corners.push_back(markerCorners.at(i).at(0));
+			}
+		}
+		for (int i = 0; (i < markerIds.size()) && (board_corners.size() == 2); i++) {
+			if (markerIds.at(i) == 85) {
+				board_corners.push_back(markerCorners.at(i).at(0));
+			}
+		}
+		for (int i = 0; (i < markerIds.size()) && (board_corners.size() == 3); i++) {
+			if (markerIds.at(i) == 90) {
+				board_corners.push_back(markerCorners.at(i).at(0));
+			}
+		}
+
+		//check if corners found
+		if (board_corners.size() == 4) {
+			//create output image and its corners
+			warped_board = cv::Mat::zeros(Size(720, 507), CV_8UC3);
+
+			vector<Point2f> destination_corners;
+			destination_corners.push_back(Point2i(0, 507));
+			destination_corners.push_back(Point2i(0, 0));
+			destination_corners.push_back(Point2i(720, 0));
+			destination_corners.push_back(Point2i(720, 507));
+
+			//warp image
+			cv::Mat pTransMat = cv::getPerspectiveTransform(board_corners, destination_corners);
+			//std::cout << pTransMat << std::endl;
+			//Size2i output_dim(720, 507);
+			warpPerspective(inputImage, warped_board, pTransMat, Size(720, 507));
+
+			//show output for debugging
+			imshow("rectangle", warped_board);
+			//waitKey(10);
+		}
+	}
+	else {
+		std::cout << "Warning: no image" << std::endl;
+	}
 }

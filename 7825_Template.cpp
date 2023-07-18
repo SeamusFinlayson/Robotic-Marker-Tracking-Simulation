@@ -33,12 +33,11 @@ void lab2()
   // MATLAB
 }
 
+//draw a simple robot
 void lab3(int cam_id)
 {
   char exit_key = -1;
-  CRobot robot(cam_id);
-
-  //robot.create_simple_robot();
+  CRobot robot(-100);
 
   while (exit_key != 'q')
   {
@@ -47,6 +46,7 @@ void lab3(int cam_id)
   }
 }
 
+//draw a simple robot on a camera image at a pose based on pnp determination
 void lab4(int cam_id)
 {
     char exit_key = -1;
@@ -61,14 +61,58 @@ void lab4(int cam_id)
     }
 }
 
+
 void lab5(int cam_id)
 {
-  
+    char getinput;
+    std::cout << "\nPart A or B:" << std::endl;
+    std::cin >> getinput;
+    char exit_key = -1;
+    
+    
+    if ((getinput == 'a') || (getinput == 'A')) { //runs lab 5 part a 
+        CRobot robota(-100);
+        while (exit_key != 'q')
+        {
+            robota.draw_scara_robot();
+            exit_key = waitKey(10);
+        }
+    }
+    else if ((getinput == 'b') || (getinput == 'B')) { //runs lab 5 part b
+        CRobot robotb(cam_id);
+        while (exit_key != 'q')
+        {
+            robotb.draw_scara_robot_realcam();
+            exit_key = waitKey(10);
+        }
+    }
 }
 
 void lab6(int cam_id)
 {
-  
+    char getinput;
+    std::cout << "\nPart A or B:" << std::endl;
+    std::cin >> getinput;
+    char exit_key = -1;
+
+
+    if ((getinput == 'a') || (getinput == 'A')) { //runs lab 6 part a 
+        CRobot robota(-100);
+        while (exit_key != 'q')
+        {
+            robota.draw_lab6A();
+            exit_key = waitKey(10);
+        }
+    }
+    else if ((getinput == 'b') || (getinput == 'B')) { //runs lab 6 part b
+        CRobot robotb(cam_id);
+        while (exit_key != 'q')
+        {
+            //add code -- draw lab 6B
+            robotb.draw_lab6B();
+            exit_key = waitKey(10);
+        }
+    }
 }
 
 void lab7(int cam_id)
@@ -83,7 +127,8 @@ void lab8(int cam_id)
 
 void lab9(int cam_id)
 {
-
+    CCamera myCam;
+    myCam.calibrate_board(cam_id);
 }
 
 int main(int argc, char* argv[])
@@ -102,7 +147,7 @@ int main(int argc, char* argv[])
     cout << "\n(6) Lab 6 - Inverse Kinematics";
     cout << "\n(7) Lab 7 - Trajectories";
     cout << "\n(8) Lab 8 - Object Tracking";
-    cout << "\n(9) Lab 9 - DNN";
+    cout << "\n(9) Camera Calibration";
     cout << "\n(0) Exit";
     cout << "\n>> ";
 
